@@ -6,9 +6,11 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.obsidiansync.databinding.ActivityAuthBinding
 import com.obsidiansync.domain.AuthManager
 import com.obsidiansync.ui.main.MainActivity
+import kotlinx.coroutines.launch
 
 /**
  * 登录页面 - Gitee/GitHub授权

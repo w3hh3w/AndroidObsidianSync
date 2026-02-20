@@ -26,7 +26,7 @@ data class Repository(
     val lastSyncTime: Long = 0,
     val autoSync: Boolean = false,
     val syncInterval: Int = 30, // minutes
-    val excludePatterns: List<String> = emptyList()
+    val excludePatterns: String = "" // 存储为逗号分隔的字符串
 )
 
 /**
