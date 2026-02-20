@@ -32,4 +32,7 @@
     <color name="success">#4CAF50</color>
     <color name="error">#F44336</color>
     <color name="warning">#FF9800</color>
+
+    <!-- 启动器图标背景 -->
+    <color name="ic_launcher_background">#6750A4</color>
 </resources>
