@@ -8,7 +8,7 @@ import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.PullCommand
 import org.eclipse.jgit.api.PushCommand
 import org.eclipse.jgit.transport.CredentialsProvider
-import org.eclipse.jgit.util.Uriish
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 
 /**
@@ -143,15 +143,11 @@ class GitRepositoryManager(private val context: Context) {
         try {
             val git = Git.open(File(localPath))
 
-            // 获取远程 URL 并嵌入 Token
-            val remoteConfig = git.repository.config.getString("remote", "origin", "url")
-            val urlWithToken = when (provider) {
-                "gitee", "github" -> remoteConfig.replace("https://", "https://$accessToken@")
-                else -> remoteConfig
-            }
+            // 使用 CredentialsProvider 认证
+            val credentials = UsernamePasswordCredentialsProvider(accessToken, "")
 
             val pullResult = git.pull()
-                .setRemoteUri(URIish(urlWithToken))
+                .setCredentialsProvider(credentials)
                 .call()
 
             val summary = pullResult.mergeResult?.toString() ?: "Pull completed"
@@ -168,12 +164,8 @@ class GitRepositoryManager(private val context: Context) {
         try {
             val git = Git.open(File(localPath))
 
-            // 获取远程 URL 并嵌入 Token
-            val remoteConfig = git.repository.config.getString("remote", "origin", "url")
-            val urlWithToken = when (provider) {
-                "gitee", "github" -> remoteConfig.replace("https://", "https://$accessToken@")
-                else -> remoteConfig
-            }
+            // 使用 CredentialsProvider 认证
+            val credentials = UsernamePasswordCredentialsProvider(accessToken, "")
 
             // Add all changes
             git.add()
@@ -187,7 +179,7 @@ class GitRepositoryManager(private val context: Context) {
 
             // Push
             git.push()
-                .setRemoteUri(URIish(urlWithToken))
+                .setCredentialsProvider(credentials)
                 .call()
 
             Result.success(Unit)
