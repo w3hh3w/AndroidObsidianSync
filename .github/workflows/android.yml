@@ -27,21 +27,16 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
-      - name: Install Gradle
+      - name: Download Gradle 8.2
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -O gradle.zip
           unzip -q gradle.zip
-          export PATH=$PATH:/home/runner/gradle-8.2/bin
 
       - name: Generate Gradle Wrapper
-        run: |
-          export PATH=$PATH:/home/runner/gradle-8.2/bin
-          gradle wrapper --gradle-version 8.2
+        run: ./gradle-8.2/bin/gradle wrapper --gradle-version 8.2
 
       - name: Build debug APK
-        run: |
-          export PATH=$PATH:/home/runner/gradle-8.2/bin
-          ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
