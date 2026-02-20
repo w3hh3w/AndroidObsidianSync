@@ -1,13 +1,11 @@
 package com.obsidiansync.ui.settings
 
-import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.obsidiansync.databinding.ActivitySettingsBinding
 import com.obsidiansync.domain.AuthManager
-import com.obsidiansync.ui.main.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,6 +46,19 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun loadLoginStatus() {
+        // Gitee状态
+        if (authManager.isLoggedIn("gitee")) {
+            val username = authManager.getUsername("gitee") ?: "用户"
+            binding.tvGiteeStatus.text = "已登录 ($username)"
+            binding.tvGiteeStatus.setTextColor(0xFF4CAF50.toInt())
+            binding.btnGiteeLogin.text = "登出"
+        } else {
+            binding.tvGiteeStatus.text = "未登录"
+            binding.tvGiteeStatus.setTextColor(0xFF757575.toInt())
+            binding.btnGiteeLogin.text = "保存并登录"
+        }
+
+        // GitHub状态
         if (authManager.isLoggedIn("github")) {
             val username = authManager.getUsername("github") ?: "用户"
             binding.tvGithubStatus.text = "已登录 ($username)"
@@ -61,14 +72,21 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        // Gitee Token登录
+        binding.btnGiteeLogin.setOnClickListener {
+            if (authManager.isLoggedIn("gitee")) {
+                confirmLogout("gitee")
+            } else {
+                saveTokenAndLogin("gitee")
+            }
+        }
+
         // GitHub Token登录
         binding.btnGithubLogin.setOnClickListener {
             if (authManager.isLoggedIn("github")) {
-                // 登出
-                confirmLogout()
+                confirmLogout("github")
             } else {
-                // 登录
-                saveTokenAndLogin()
+                saveTokenAndLogin("github")
             }
         }
 
@@ -78,46 +96,63 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveTokenAndLogin() {
-        val token = binding.etGithubToken.text.toString().trim()
+    private fun saveTokenAndLogin(provider: String) {
+        val token = when (provider) {
+            "gitee" -> binding.etGiteeToken.text.toString().trim()
+            "github" -> binding.etGithubToken.text.toString().trim()
+            else -> ""
+        }
 
         if (token.isEmpty()) {
-            Toast.makeText(this, "请输入Access Token", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "请输入Token", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 验证Token是否有效
-        binding.btnGithubLogin.isEnabled = false
-        binding.btnGithubLogin.text = "验证中..."
+        // 验证Token
+        val btn = if (provider == "gitee") binding.btnGiteeLogin else binding.btnGithubLogin
+        btn.isEnabled = false
+        btn.text = "验证中..."
 
         CoroutineScope(Dispatchers.Main).launch {
             val result = withContext(Dispatchers.IO) {
-                verifyGitHubToken(token)
+                verifyToken(provider, token)
             }
 
             if (result.isSuccess) {
-                val username = result.getOrNull() ?: "GitHub用户"
-                authManager.saveToken("github", token)
-                authManager.saveUsername("github", username)
+                val username = result.getOrNull() ?: "${provider}用户"
+                authManager.saveToken(provider, token)
+                authManager.saveUsername(provider, username)
                 Toast.makeText(this@SettingsActivity, "登录成功: $username", Toast.LENGTH_SHORT).show()
                 loadLoginStatus()
             } else {
                 Toast.makeText(this@SettingsActivity, "Token无效: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                binding.btnGithubLogin.isEnabled = true
-                binding.btnGithubLogin.text = "保存并登录"
+                btn.isEnabled = true
+                btn.text = "保存并登录"
             }
         }
     }
 
-    private fun verifyGitHubToken(token: String): Result<String> {
+    private fun verifyToken(provider: String, token: String): Result<String> {
         return try {
             val client = OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .build()
 
+            val (url, authHeader) = when (provider) {
+                "gitee" -> Pair(
+                    "https://gitee.com/api/v5/user",
+                    "token $token"
+                )
+                "github" -> Pair(
+                    "https://api.github.com/user",
+                    "token $token"
+                )
+                else -> return Result.failure(Exception("Unknown provider"))
+            }
+
             val request = Request.Builder()
-                .url("https://api.github.com/user")
-                .addHeader("Authorization", "token $token")
+                .url(url)
+                .addHeader("Authorization", authHeader)
                 .get()
                 .build()
 
@@ -125,12 +160,17 @@ class SettingsActivity : AppCompatActivity() {
 
             if (response.isSuccessful) {
                 val body = response.body?.string() ?: ""
-                // 解析用户名
-                val username = try {
-                    val regex = """\"login"\s*:\s*"([^"]+)"""".toRegex()
-                    regex.find(body)?.groupValues?.get(1) ?: "用户"
-                } catch (e: Exception) {
-                    "用户"
+                val username = when (provider) {
+                    "gitee" -> {
+                        // Gitee: {"login": "xxx", "name": "xxx"}
+                        val regex = """\"login"\s*:\s*"([^"]+)"""".toRegex()
+                        regex.find(body)?.groupValues?.get(1) ?: "用户"
+                    }
+                    "github" -> {
+                        val regex = """\"login"\s*:\s*"([^"]+)"""".toRegex()
+                        regex.find(body)?.groupValues?.get(1) ?: "用户"
+                    }
+                    else -> "用户"
                 }
                 Result.success(username)
             } else {
@@ -141,13 +181,18 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun confirmLogout() {
+    private fun confirmLogout(provider: String) {
+        val name = if (provider == "gitee") "Gitee" else "GitHub"
         AlertDialog.Builder(this)
             .setTitle("登出")
-            .setMessage("确定要登出GitHub吗？")
+            .setMessage("确定要登出 $name 吗？")
             .setPositiveButton("确定") { _, _ ->
-                authManager.logout("github")
-                binding.etGithubToken.setText("")
+                authManager.logout(provider)
+                if (provider == "gitee") {
+                    binding.etGiteeToken.setText("")
+                } else {
+                    binding.etGithubToken.setText("")
+                }
                 loadLoginStatus()
                 Toast.makeText(this, "已登出", Toast.LENGTH_SHORT).show()
             }
@@ -161,10 +206,10 @@ class SettingsActivity : AppCompatActivity() {
             .setMessage("""
                 ObsidianSync v1.0
 
-                通过 GitHub 同步你的 Obsidian 笔记库。
+                通过 Gitee/GitHub 同步你的 Obsidian 笔记库。
 
                 使用步骤：
-                1. 在GitHub生成Access Token
+                1. 在Gitee/GitHub生成Access Token
                 2. 在设置中粘贴Token
                 3. 添加仓库开始同步
 

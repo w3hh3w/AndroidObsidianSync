@@ -35,7 +35,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: RepositoryAdapter
 
     private var selectedLocalPath: String = ""
-    private var currentProvider: String = "github"
+    private var currentProvider: String = "gitee"
 
     // 文件夹选择器
     private val folderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -81,9 +81,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 用户信息
+        val giteeUser = authManager.getUsername("gitee")
         val githubUser = authManager.getUsername("github")
-        if (githubUser != null) {
-            binding.tvUsername.text = githubUser
+        val user = giteeUser ?: githubUser
+        if (user != null) {
+            binding.tvUsername.text = user
         }
     }
 
@@ -97,14 +99,36 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showAddRepositoryDialog() {
-        // 检查是否已登录
-        if (!authManager.isLoggedIn("github")) {
-            Toast.makeText(this, "请先在设置中配置GitHub Token", Toast.LENGTH_SHORT).show()
+        // 检查Gitee和GitHub是否至少有一个登录
+        val giteeLoggedIn = authManager.isLoggedIn("gitee")
+        val githubLoggedIn = authManager.isLoggedIn("github")
+
+        if (!giteeLoggedIn && !githubLoggedIn) {
+            Toast.makeText(this, "请先在设置中配置Gitee或GitHub Token", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 直接显示仓库URL输入
-        showRepoUrlDialog()
+        // 如果只有一个登录，直接用那个
+        if (giteeLoggedIn && !githubLoggedIn) {
+            currentProvider = "gitee"
+            showRepoUrlDialog()
+            return
+        }
+        if (!giteeLoggedIn && githubLoggedIn) {
+            currentProvider = "github"
+            showRepoUrlDialog()
+            return
+        }
+
+        // 两个都登录了，让用户选择
+        val providers = arrayOf("Gitee", "GitHub")
+        AlertDialog.Builder(this)
+            .setTitle("选择平台")
+            .setItems(providers) { _, which ->
+                currentProvider = if (which == 0) "gitee" else "github"
+                showRepoUrlDialog()
+            }
+            .show()
     }
 
     private fun showFolderPicker() {
