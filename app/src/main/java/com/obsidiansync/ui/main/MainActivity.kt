@@ -20,8 +20,11 @@ import com.obsidiansync.data.local.Repository
 import com.obsidiansync.databinding.ActivityMainBinding
 import com.obsidiansync.domain.AuthManager
 import com.obsidiansync.domain.SyncManager
+import com.obsidiansync.ui.settings.RepoInfo
 import com.obsidiansync.ui.settings.SettingsActivity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 主页面 - 仓库列表和同步控制
@@ -121,12 +124,12 @@ class MainActivity : AppCompatActivity() {
         // 如果只有一个登录，直接用那个
         if (giteeLoggedIn && !githubLoggedIn) {
             currentProvider = "gitee"
-            showRepoUrlDialog()
+            loadAndShowRepos()
             return
         }
         if (!giteeLoggedIn && githubLoggedIn) {
             currentProvider = "github"
-            showRepoUrlDialog()
+            loadAndShowRepos()
             return
         }
 
@@ -136,49 +139,157 @@ class MainActivity : AppCompatActivity() {
             .setTitle("选择平台")
             .setItems(providers) { _, which ->
                 currentProvider = if (which == 0) "gitee" else "github"
-                showRepoUrlDialog()
+                loadAndShowRepos()
             }
             .show()
     }
 
-    private fun showFolderPicker() {
-        folderPicker.launch(null)
-    }
-
-    private fun takeFolderPermission(uri: Uri) {
-        try {
-            val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            contentResolver.takePersistableUriPermission(uri, takeFlags)
-
-            // 获取真实路径（需要用户授权访问）
-            val docId = DocumentsContract.getTreeDocumentId(uri)
-            selectedLocalPath = Environment.getExternalStorageDirectory().absolutePath
-
-            // 显示仓库URL输入对话框
-            showRepoUrlDialog()
-        } catch (e: Exception) {
-            Toast.makeText(this, "无法获取文件夹权限", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun showRepoUrlDialog() {
-        val editText = android.widget.EditText(this).apply {
-            hint = "输入Gitee/GitHub仓库URL"
+    private fun loadAndShowRepos() {
+        val token = authManager.getToken(currentProvider)
+        if (token == null) {
+            Toast.makeText(this, "Token无效，请重新登录", Toast.LENGTH_SHORT).show()
+            return
         }
 
-        AlertDialog.Builder(this)
-            .setTitle("添加仓库")
-            .setMessage("请输入仓库地址（如：https://gitee.com/user/obsidian-notes）")
-            .setView(editText)
-            .setPositiveButton("添加") { _, _ ->
-                val repoUrl = editText.text.toString().trim()
-                if (repoUrl.isNotEmpty()) {
-                    addRepository(repoUrl)
+        binding.progressBar.visibility = View.VISIBLE
+
+        lifecycleScope.launch {
+            val repos = withContext(Dispatchers.IO) {
+                try {
+                    val client = okhttp3.OkHttpClient()
+                    val (url, authHeader) = when (currentProvider) {
+                        "gitee" -> Pair(
+                            "https://gitee.com/api/v5/user/repos?per_page=100&sort=updated",
+                            "token $token"
+                        )
+                        "github" -> Pair(
+                            "https://api.github.com/user/repos?per_page=100&sort=updated",
+                            "token $token"
+                        )
+                        else -> return@withContext emptyList()
+                    }
+
+                    val request = okhttp3.Request.Builder()
+                        .url(url)
+                        .addHeader("Authorization", authHeader)
+                        .get()
+                        .build()
+
+                    val response = client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val body = response.body?.string() ?: ""
+                        parseRepoList(body)
+                    } else {
+                        emptyList()
+                    }
+                } catch (e: Exception) {
+                    emptyList()
                 }
+            }
+
+            binding.progressBar.visibility = View.GONE
+
+            if (repos.isEmpty()) {
+                Toast.makeText(this@MainActivity, "获取仓库列表失败", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            showRepoListDialog(repos)
+        }
+    }
+
+    private fun parseRepoList(json: String): List<RepoInfo> {
+        val repos = mutableListOf<RepoInfo>()
+        try {
+            val regex = """\"full_name"\s*:\s*"([^"]+)"""".toRegex()
+            regex.findAll(json).forEach { match ->
+                val fullName = match.groupValues[1]
+                repos.add(RepoInfo(
+                    name = fullName.substringAfter("/"),
+                    fullName = fullName,
+                    url = if (currentProvider == "gitee") "https://gitee.com/$fullName" else "https://github.com/$fullName"
+                ))
+            }
+        } catch (e: Exception) {
+            // 解析失败
+        }
+        return repos
+    }
+
+    private fun showRepoListDialog(repos: List<RepoInfo>) {
+        val names = repos.map { it.fullName }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("选择仓库")
+            .setItems(names) { _, which ->
+                val selectedRepo = repos[which]
+                // 选择本地文件夹
+                showFolderPicker(selectedRepo)
             }
             .setNegativeButton("取消", null)
             .show()
+    }
+
+    private fun showFolderPicker(selectedRepo: RepoInfo) {
+        // 保存选择的仓库信息
+        currentRepoInfo = selectedRepo
+        folderPicker.launch(null)
+    }
+
+    private var currentRepoInfo: RepoInfo? = null
+
+    private val folderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let {
+            try {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                contentResolver.takePersistableUriPermission(uri, takeFlags)
+
+                // 使用外部存储作为同步目录
+                selectedLocalPath = getExternalFilesDir(null)?.absolutePath + "/${currentRepoInfo?.name}"
+
+                // 克隆仓库
+                currentRepoInfo?.let { repo ->
+                    addRepositoryFromRepoInfo(repo)
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "无法获取文件夹权限", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun addRepositoryFromRepoInfo(repo: RepoInfo) {
+        binding.progressBar.visibility = View.VISIBLE
+
+        lifecycleScope.launch {
+            val token = authManager.getToken(currentProvider)
+            if (token == null) {
+                Toast.makeText(this@MainActivity, "未登录", Toast.LENGTH_SHORT).show()
+                binding.progressBar.visibility = View.GONE
+                return@launch
+            }
+
+            val localPath = getExternalFilesDir(null)?.absolutePath + "/${repo.name}"
+            val result = gitManager.cloneRepository(repo.url, localPath, token, currentProvider)
+
+            if (result.isSuccess) {
+                val repository = Repository(
+                    name = repo.name,
+                    remoteUrl = repo.url,
+                    localPath = localPath,
+                    provider = currentProvider,
+                    accessToken = token,
+                    autoSync = false,
+                    syncInterval = 30
+                )
+                gitManager.saveRepository(repository)
+                Toast.makeText(this@MainActivity, "仓库添加成功", Toast.LENGTH_SHORT).show()
+                loadRepositories()
+            } else {
+                Toast.makeText(this@MainActivity, "克隆失败: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+            }
+
+            binding.progressBar.visibility = View.GONE
+        }
     }
 
     private fun addRepository(repoUrl: String) {

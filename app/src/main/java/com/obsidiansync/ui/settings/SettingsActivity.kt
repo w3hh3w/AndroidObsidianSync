@@ -161,12 +161,7 @@ class SettingsActivity : AppCompatActivity() {
             if (response.isSuccessful) {
                 val body = response.body?.string() ?: ""
                 val username = when (provider) {
-                    "gitee" -> {
-                        // Gitee: {"login": "xxx", "name": "xxx"}
-                        val regex = """\"login"\s*:\s*"([^"]+)"""".toRegex()
-                        regex.find(body)?.groupValues?.get(1) ?: "用户"
-                    }
-                    "github" -> {
+                    "gitee", "github" -> {
                         val regex = """\"login"\s*:\s*"([^"]+)"""".toRegex()
                         regex.find(body)?.groupValues?.get(1) ?: "用户"
                     }
@@ -218,4 +213,71 @@ class SettingsActivity : AppCompatActivity() {
             .setPositiveButton("确定", null)
             .show()
     }
+
+    /**
+     * 获取用户仓库列表
+     */
+    fun getUserRepositories(provider: String, token: String): List<RepoInfo> {
+        return try {
+            val client = OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .build()
+
+            val (url, authHeader) = when (provider) {
+                "gitee" -> Pair(
+                    "https://gitee.com/api/v5/user/repos?per_page=100&sort=updated",
+                    "token $token"
+                )
+                "github" -> Pair(
+                    "https://api.github.com/user/repos?per_page=100&sort=updated",
+                    "token $token"
+                )
+                else -> return emptyList()
+            }
+
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", authHeader)
+                .get()
+                .build()
+
+            val response = client.newCall(request).execute()
+
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                parseRepositories(provider, body)
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun parseRepositories(provider: String, json: String): List<RepoInfo> {
+        val repos = mutableListOf<RepoInfo>()
+        try {
+            val regex = """\"full_name"\s*:\s*"([^"]+)"""".toRegex()
+            regex.findAll(json).forEach { match ->
+                val fullName = match.groupValues[1]
+                repos.add(RepoInfo(
+                    name = fullName.substringAfter("/"),
+                    fullName = fullName,
+                    url = if (provider == "gitee") "https://gitee.com/$fullName" else "https://github.com/$fullName"
+                ))
+            }
+        } catch (e: Exception) {
+            // 解析失败
+        }
+        return repos
+    }
 }
+
+/**
+ * 仓库信息
+ */
+data class RepoInfo(
+    val name: String,
+    val fullName: String,
+    val url: String
+)
