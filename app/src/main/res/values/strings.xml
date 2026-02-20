@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ObsidianSync</string>
+
+    <!-- 登录页面 -->
+    <string name="login_title">ObsidianSync</string>
+    <string name="login_subtitle">通过Gitee/GitHub同步你的笔记</string>
+    <string name="btn_login_gitee">使用 Gitee 登录</string>
+    <string name="btn_login_github">使用 GitHub 登录</string>
+    <string name="btn_skip">跳过，直接查看仓库</string>
+
+    <!-- 主页面 -->
+    <string name="no_repos">还没有仓库</string>
+    <string name="add_repo_hint">点击 + 添加你的Obsidian仓库</string>
+    <string name="add_repo">添加仓库</string>
+    <string name="sync">同步</string>
+    <string name="delete">删除</string>
+    <string name="settings">设置</string>
+
+    <!-- 仓库列表 -->
+    <string name="last_sync">最后同步: %s</string>
+    <string name="never_synced">从未同步</string>
+    <string name="auto_sync">自动同步 (%d分钟)</string>
+    <string name="manual_sync">手动同步</string>
+
+    <!-- 设置页面 -->
+    <string name="settings_title">设置</string>
+    <string name="account">账户</string>
+    <string name="repo_settings">仓库设置</string>
+    <string name="auto_sync_enabled">自动同步</string>
+    <string name="auto_sync_desc">在后台定时同步</string>
+    <string name="sync_interval">同步间隔</string>
+    <string name="exclude_patterns">排除的文件/文件夹（每行一个）</string>
+    <string name="save_settings">保存设置</string>
+    <string name="about">关于</string>
+    <string name="logout">登出</string>
+
+    <!-- 同步间隔选项 -->
+    <string name="interval_5min">5分钟</string>
+    <string name="interval_15min">15分钟</string>
+    <string name="interval_30min">30分钟</string>
+    <string name="interval_1hour">1小时</string>
+    <string name="interval_2hour">2小时</string>
+
+    <!-- 消息 -->
+    <string name="login_required">请先登录</string>
+    <string name="login_success">登录成功</string>
+    <string name="login_failed">登录失败</string>
+    <string name="logout_success">已登出</string>
+    <string name="sync_success">同步成功</string>
+    <string name="sync_failed">同步失败: %s</string>
+    <string name="settings_saved">设置已保存</string>
+    <string name="repo_added">仓库添加成功</string>
+    <string name="repo_deleted">仓库已删除</string>
+    <string name="confirm_delete">确定要删除仓库 %s 吗？本地文件不会被删除。</string>
+
+    <!-- 平台 -->
+    <string name="gitee">Gitee</string>
+    <string name="github">GitHub</string>
+    <string name="not_logged_in">未登录</string>
+
+    <!-- 时间 -->
+    <string name="minutes">分钟</string>
+    <string name="hours">小时</string>
+</resources>
