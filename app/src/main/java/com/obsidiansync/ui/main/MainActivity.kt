@@ -40,11 +40,6 @@ class MainActivity : AppCompatActivity() {
     private var selectedLocalPath: String = ""
     private var currentProvider: String = "gitee"
 
-    // 文件夹选择器
-    private val folderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        uri?.let { takeFolderPermission(it) }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
