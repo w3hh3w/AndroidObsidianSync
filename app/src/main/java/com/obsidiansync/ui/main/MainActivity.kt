@@ -35,7 +35,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: RepositoryAdapter
 
     private var selectedLocalPath: String = ""
-    private var currentProvider: String = "gitee"
+    private var currentProvider: String = "github"
 
     // 文件夹选择器
     private val folderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -81,11 +81,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 用户信息
-        val giteeUser = authManager.getUsername("gitee")
         val githubUser = authManager.getUsername("github")
-        val user = giteeUser ?: githubUser
-        if (user != null) {
-            binding.tvUsername.text = user
+        if (githubUser != null) {
+            binding.tvUsername.text = githubUser
         }
     }
 
@@ -99,22 +97,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showAddRepositoryDialog() {
-        val providers = arrayOf("Gitee", "GitHub")
-        AlertDialog.Builder(this)
-            .setTitle("选择平台")
-            .setItems(providers) { _, which ->
-                currentProvider = if (which == 0) "gitee" else "github"
+        // 检查是否已登录
+        if (!authManager.isLoggedIn("github")) {
+            Toast.makeText(this, "请先在设置中配置GitHub Token", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-                // 检查是否登录
-                if (!authManager.isLoggedIn(currentProvider)) {
-                    Toast.makeText(this, "请先在设置中登录${providers[which]}", Toast.LENGTH_SHORT).show()
-                    return@setItems
-                }
-
-                // 选择本地文件夹
-                showFolderPicker()
-            }
-            .show()
+        // 直接显示仓库URL输入
+        showRepoUrlDialog()
     }
 
     private fun showFolderPicker() {
