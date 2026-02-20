@@ -47,6 +47,10 @@ class AuthManager(private val context: Context) {
         // Scopes
         const val GITEE_SCOPE = "user,repo"
         const val GITHUB_SCOPE = "repo,user"
+
+        // 默认 OAuth 配置（GitHub）
+        const val DEFAULT_GITHUB_CLIENT_ID = "Ov23linrJCzVlb5wLfOB"
+        const val DEFAULT_GITHUB_CLIENT_SECRET = "d7e15998f29cd61cc4e03b2ba1764e6f9e880c74"
     }
 
     /**
@@ -82,8 +86,8 @@ class AuthManager(private val context: Context) {
                 } else null
             }
             "github" -> {
-                val clientId = securePrefs.getString(KEY_GITHUB_CLIENT_ID, null)
-                val clientSecret = securePrefs.getString(KEY_GITHUB_CLIENT_SECRET, null)
+                val clientId = securePrefs.getString(KEY_GITHUB_CLIENT_ID, DEFAULT_GITHUB_CLIENT_ID)
+                val clientSecret = securePrefs.getString(KEY_GITHUB_CLIENT_SECRET, DEFAULT_GITHUB_CLIENT_SECRET)
                 if (clientId != null && clientSecret != null) {
                     OAuthConfig(clientId, clientSecret, DEFAULT_GITHUB_REDIRECT_URI)
                 } else null

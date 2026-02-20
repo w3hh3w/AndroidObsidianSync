@@ -63,6 +63,12 @@ class AuthActivity : AppCompatActivity() {
         binding.btnGiteeLogin.isEnabled = false
 
         val authUrl = authManager.getGiteeAuthUrl()
+        if (authUrl == null) {
+            Toast.makeText(this, "请先在设置中配置Gitee OAuth", Toast.LENGTH_SHORT).show()
+            binding.progressBar.visibility = View.GONE
+            binding.btnGiteeLogin.isEnabled = true
+            return
+        }
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
         startActivity(intent)
     }
@@ -72,6 +78,12 @@ class AuthActivity : AppCompatActivity() {
         binding.btnGithubLogin.isEnabled = false
 
         val authUrl = authManager.getGitHubAuthUrl()
+        if (authUrl == null) {
+            Toast.makeText(this, "请先在设置中配置GitHub OAuth", Toast.LENGTH_SHORT).show()
+            binding.progressBar.visibility = View.GONE
+            binding.btnGithubLogin.isEnabled = true
+            return
+        }
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
         startActivity(intent)
     }
