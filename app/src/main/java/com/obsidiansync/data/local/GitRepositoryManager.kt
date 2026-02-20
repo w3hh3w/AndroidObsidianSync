@@ -97,6 +97,7 @@ class GitRepositoryManager(private val context: Context) {
         remoteUrl: String,
         localPath: String,
         accessToken: String,
+        provider: String = "github",
         branch: String? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -105,7 +106,12 @@ class GitRepositoryManager(private val context: Context) {
                 return@withContext Result.failure(Exception("目录已存在"))
             }
 
-            val credentials = UsernamePasswordCredentialsProvider(accessToken, "")
+            // Gitee和GitHub使用不同的认证方式
+            val credentials = when (provider) {
+                "gitee" -> UsernamePasswordCredentialsProvider(accessToken, "")
+                "github" -> UsernamePasswordCredentialsProvider(accessToken, "x-oauth-basic")
+                else -> UsernamePasswordCredentialsProvider(accessToken, "")
+            }
 
             // 尝试用户指定的分支，如果没有指定则先尝试 main，失败后尝试 master
             val branchesToTry = listOfNotNull(branch, "main", "master").distinct()
@@ -126,7 +132,7 @@ class GitRepositoryManager(private val context: Context) {
                 }
             }
 
-            Result.failure(Exception("无法克隆仓库，请检查仓库地址和分支是否存在"))
+            Result.failure(Exception("无法克隆仓库，请检查仓库地址和Token是否正确"))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -135,10 +141,14 @@ class GitRepositoryManager(private val context: Context) {
     /**
      * Pull 拉取远程更新
      */
-    suspend fun pull(localPath: String, accessToken: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun pull(localPath: String, accessToken: String, provider: String = "github"): Result<String> = withContext(Dispatchers.IO) {
         try {
             val git = Git.open(File(localPath))
-            val credentials = UsernamePasswordCredentialsProvider(accessToken, "")
+            val credentials = when (provider) {
+                "gitee" -> UsernamePasswordCredentialsProvider(accessToken, "")
+                "github" -> UsernamePasswordCredentialsProvider(accessToken, "x-oauth-basic")
+                else -> UsernamePasswordCredentialsProvider(accessToken, "")
+            }
 
             val pullResult = git.pull()
                 .setCredentialsProvider(credentials)
@@ -154,10 +164,14 @@ class GitRepositoryManager(private val context: Context) {
     /**
      * Push 推送到远程
      */
-    suspend fun push(localPath: String, accessToken: String, commitMessage: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun push(localPath: String, accessToken: String, commitMessage: String, provider: String = "github"): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val git = Git.open(File(localPath))
-            val credentials = UsernamePasswordCredentialsProvider(accessToken, "")
+            val credentials = when (provider) {
+                "gitee" -> UsernamePasswordCredentialsProvider(accessToken, "")
+                "github" -> UsernamePasswordCredentialsProvider(accessToken, "x-oauth-basic")
+                else -> UsernamePasswordCredentialsProvider(accessToken, "")
+            }
 
             // Add all changes
             git.add()
@@ -207,14 +221,15 @@ class GitRepositoryManager(private val context: Context) {
     suspend fun sync(
         localPath: String,
         accessToken: String,
-        commitMessage: String = "Sync from ObsidianSync"
+        commitMessage: String = "Sync from ObsidianSync",
+        provider: String = "github"
     ): Result<SyncResult> = withContext(Dispatchers.IO) {
         try {
             // First pull
-            val pullResult = pull(localPath, accessToken)
+            val pullResult = pull(localPath, accessToken, provider)
 
             // Then push
-            val pushResult = push(localPath, accessToken, commitMessage)
+            val pushResult = push(localPath, accessToken, commitMessage, provider)
 
             if (pushResult.isSuccess) {
                 Result.success(SyncResult(

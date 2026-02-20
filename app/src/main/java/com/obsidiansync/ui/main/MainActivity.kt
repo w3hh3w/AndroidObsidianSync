@@ -55,6 +55,21 @@ class MainActivity : AppCompatActivity() {
         loadRepositories()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // 刷新用户信息
+        refreshUserInfo()
+    }
+
+    private fun refreshUserInfo() {
+        val giteeUser = authManager.getUsername("gitee")
+        val githubUser = authManager.getUsername("github")
+        val user = giteeUser ?: githubUser
+        if (user != null) {
+            binding.tvUsername.text = user
+        }
+    }
+
     private fun setupUI() {
         // 仓库列表
         adapter = RepositoryAdapter(
@@ -81,12 +96,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 用户信息
-        val giteeUser = authManager.getUsername("gitee")
-        val githubUser = authManager.getUsername("github")
-        val user = giteeUser ?: githubUser
-        if (user != null) {
-            binding.tvUsername.text = user
-        }
+        refreshUserInfo()
     }
 
     private fun loadRepositories() {
@@ -187,7 +197,7 @@ class MainActivity : AppCompatActivity() {
                 return@launch
             }
 
-            val result = gitManager.cloneRepository(repoUrl, localPath, token)
+            val result = gitManager.cloneRepository(repoUrl, localPath, token, currentProvider)
 
             if (result.isSuccess) {
                 // 保存仓库配置
