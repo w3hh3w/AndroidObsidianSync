@@ -8,7 +8,7 @@ import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.PullCommand
 import org.eclipse.jgit.api.PushCommand
 import org.eclipse.jgit.transport.CredentialsProvider
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+import org.eclipse.jgit.util.Uriish
 import java.io.File
 
 /**
@@ -106,11 +106,10 @@ class GitRepositoryManager(private val context: Context) {
                 return@withContext Result.failure(Exception("目录已存在"))
             }
 
-            // Gitee和GitHub使用不同的认证方式
-            val credentials = when (provider) {
-                "gitee" -> UsernamePasswordCredentialsProvider(accessToken, "")
-                "github" -> UsernamePasswordCredentialsProvider(accessToken, "x-oauth-basic")
-                else -> UsernamePasswordCredentialsProvider(accessToken, "")
+            // Gitee 和 GitHub 都使用 URL 嵌入 Token 的方式认证
+            val urlWithToken = when (provider) {
+                "gitee", "github" -> remoteUrl.replace("https://", "https://$accessToken@")
+                else -> remoteUrl
             }
 
             // 尝试用户指定的分支，如果没有指定则先尝试 main，失败后尝试 master
@@ -119,9 +118,8 @@ class GitRepositoryManager(private val context: Context) {
             for (branchName in branchesToTry) {
                 try {
                     Git.cloneRepository()
-                        .setURI(remoteUrl)
+                        .setURI(urlWithToken)
                         .setDirectory(localDir)
-                        .setCredentialsProvider(credentials)
                         .setCloneAllBranches(false)
                         .setBranch(branchName)
                         .call()
@@ -144,14 +142,16 @@ class GitRepositoryManager(private val context: Context) {
     suspend fun pull(localPath: String, accessToken: String, provider: String = "github"): Result<String> = withContext(Dispatchers.IO) {
         try {
             val git = Git.open(File(localPath))
-            val credentials = when (provider) {
-                "gitee" -> UsernamePasswordCredentialsProvider(accessToken, "")
-                "github" -> UsernamePasswordCredentialsProvider(accessToken, "x-oauth-basic")
-                else -> UsernamePasswordCredentialsProvider(accessToken, "")
+
+            // 获取远程 URL 并嵌入 Token
+            val remoteConfig = git.repository.config.getString("remote", "origin", "url")
+            val urlWithToken = when (provider) {
+                "gitee", "github" -> remoteConfig.replace("https://", "https://$accessToken@")
+                else -> remoteConfig
             }
 
             val pullResult = git.pull()
-                .setCredentialsProvider(credentials)
+                .setRemoteUri(URIish(urlWithToken))
                 .call()
 
             val summary = pullResult.mergeResult?.toString() ?: "Pull completed"
@@ -167,10 +167,12 @@ class GitRepositoryManager(private val context: Context) {
     suspend fun push(localPath: String, accessToken: String, commitMessage: String, provider: String = "github"): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val git = Git.open(File(localPath))
-            val credentials = when (provider) {
-                "gitee" -> UsernamePasswordCredentialsProvider(accessToken, "")
-                "github" -> UsernamePasswordCredentialsProvider(accessToken, "x-oauth-basic")
-                else -> UsernamePasswordCredentialsProvider(accessToken, "")
+
+            // 获取远程 URL 并嵌入 Token
+            val remoteConfig = git.repository.config.getString("remote", "origin", "url")
+            val urlWithToken = when (provider) {
+                "gitee", "github" -> remoteConfig.replace("https://", "https://$accessToken@")
+                else -> remoteConfig
             }
 
             // Add all changes
@@ -185,7 +187,7 @@ class GitRepositoryManager(private val context: Context) {
 
             // Push
             git.push()
-                .setCredentialsProvider(credentials)
+                .setRemoteUri(URIish(urlWithToken))
                 .call()
 
             Result.success(Unit)
